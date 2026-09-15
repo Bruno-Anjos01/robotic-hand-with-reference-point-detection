@@ -1,7 +1,7 @@
 from pyfirmata import Arduino,SERVO
 import time
 
-board = Arduino('COM3')
+board = Arduino('COM6')
 
 pin1 = 10
 pin2 = 9
@@ -18,7 +18,6 @@ board.digital[pin5].mode = SERVO
 def rotateServo(pino,angle):
     board.digital[pino].write(angle)
     time.sleep(0.015)
-
 
 rotateServo(pin1,0)
 rotateServo(pin2,0)

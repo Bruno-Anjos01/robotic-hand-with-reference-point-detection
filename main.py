@@ -2,67 +2,390 @@ import cv2
 import mediapipe as mp
 import servo_braco3d as mao
 
-cap = cv2.VideoCapture(0,cv2.CAP_DSHOW)
+# ============================================================
+# CONFIGURAÇÃO DA CÂMERA
+# ============================================================
 
-cap.set(3,640)
-cap.set(4,480)
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
-hands = mp.solutions.hands
-Hands = hands.Hands(max_num_hands=1)
-mpDwaw = mp.solutions.drawing_utils
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+# ============================================================
+# CONFIGURAÇÃO DO MEDIAPIPE
+# ============================================================
+
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+
+hands = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.6,
+    min_tracking_confidence=0.6
+)
+
+# ============================================================
+# PINOS DOS SERVOS
+# ============================================================
+
+POLEGAR = 10
+INDICADOR = 9
+MEDIO = 8
+ANELAR = 7
+MINIMO = 6
+
+# ============================================================
+# ESTADO ANTERIOR DOS DEDOS
+# ============================================================
+
+# Estado atual confirmado dos dedos
+estado_anterior = {
+    POLEGAR: None,
+    INDICADOR: None,
+    MEDIO: None,
+    ANELAR: None,
+    MINIMO: None
+}
+
+# Estado que está sendo observado pela câmera
+estado_candidato = {
+    POLEGAR: None,
+    INDICADOR: None,
+    MEDIO: None,
+    ANELAR: None,
+    MINIMO: None
+}
+
+# Quantos frames seguidos o mesmo estado apareceu
+contador_estado = {
+    POLEGAR: 0,
+    INDICADOR: 0,
+    MEDIO: 0,
+    ANELAR: 0,
+    MINIMO: 0
+}
+
+# Quantidade de frames necessários para aceitar a mudança
+FRAMES_CONFIRMACAO = 5
+
+def atualizar_servo(pin, novo_estado):
+
+    # Se mudou o estado que a câmera está enxergando,
+    # começa a contagem novamente
+    if estado_candidato[pin] != novo_estado:
+
+        estado_candidato[pin] = novo_estado
+        contador_estado[pin] = 1
+
+    else:
+
+        contador_estado[pin] += 1
+
+    # Só movimenta depois de vários frames iguais
+    if contador_estado[pin] >= FRAMES_CONFIRMACAO:
+
+        if estado_anterior[pin] != novo_estado:
+
+            if novo_estado == 1:
+                print(f"Servo {pin}: ABRIR")
+            else:
+                print(f"Servo {pin}: FECHAR")
+
+            mao.abrir_fechar(
+                pin,
+                novo_estado
+            )
+
+            estado_anterior[pin] = novo_estado
+
+# ============================================================
+# LOOP PRINCIPAL
+# ============================================================
+
+print("Sistema iniciado.")
+print("Mostre a mão para a câmera.")
+print("Pressione Q para sair.")
 
 while True:
+
     success, img = cap.read()
-    frameRGB = cv2.cvtColor(img,cv2.COLOR_BGR2RGB)
-    results = Hands.process(frameRGB)
-    handPoints = results.multi_hand_landmarks
+
+    if not success:
+        print("Erro ao capturar imagem da câmera.")
+        break
+
+    # Espelha a imagem
+    img = cv2.flip(img, 1)
+
+    # Converte BGR para RGB
+    frameRGB = cv2.cvtColor(
+        img,
+        cv2.COLOR_BGR2RGB
+    )
+
+    # Processa a mão
+    results = hands.process(frameRGB)
+
     h, w, _ = img.shape
-    pontos = []
-    if handPoints:
-        for points in handPoints:
-            mpDwaw.draw_landmarks(img, points,hands.HAND_CONNECTIONS)
-            #podemos enumerar esses pontos da seguinte forma
-            for id, cord in enumerate(points.landmark):
-                cx, cy = int(cord.x * w), int(cord.y * h)
-                # cv2.putText(img, str(id), (cx, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
-                cv2.circle(img,(cx,cy),4,(255,0,0),-1)
-                pontos.append((cx,cy))
 
-            if pontos:
-                distPolegar = abs(pontos[17][0] - pontos[4][0])
-                distIndicador = pontos[5][1] - pontos[8][1]
-                distMedio = pontos[9][1] - pontos[12][1]
-                distAnelar = pontos[13][1] - pontos[16][1]
-                distMinimo = pontos[17][1] - pontos[20][1]
+    # ========================================================
+    # SE UMA MÃO FOI DETECTADA
+    # ========================================================
 
-                # print(distPolegar)
+    if results.multi_hand_landmarks:
 
-                if distPolegar <80:
+        for hand_landmarks in results.multi_hand_landmarks:
 
-                    mao.abrir_fechar(10,0)
+            # Desenha os pontos e conexões da mão
+            mp_draw.draw_landmarks(
+                img,
+                hand_landmarks,
+                mp_hands.HAND_CONNECTIONS
+            )
+
+            pontos = []
+
+            # =================================================
+            # PEGA OS 21 PONTOS DA MÃO
+            # =================================================
+
+            for id, cord in enumerate(hand_landmarks.landmark):
+
+                cx = int(cord.x * w)
+                cy = int(cord.y * h)
+
+                pontos.append((cx, cy))
+
+                # Desenha os pontos
+                cv2.circle(
+                    img,
+                    (cx, cy),
+                    4,
+                    (255, 0, 0),
+                    -1
+                )
+
+            # =================================================
+            # VERIFICA SE TEM OS 21 PONTOS
+            # =================================================
+
+            if len(pontos) == 21:
+
+                # =============================================
+                # POLEGAR
+                # =============================================
+
+                distPolegar = abs(
+                    pontos[17][0] -
+                    pontos[4][0]
+                )
+
+                if distPolegar < 80:
+
+                    atualizar_servo(
+                        POLEGAR,
+                        0
+                    )
+
+                    textoPolegar = "FECHADO"
+
                 else:
-                    mao.abrir_fechar(10,1)
 
-                if distIndicador >=1:
-                    mao.abrir_fechar(9,1)
+                    atualizar_servo(
+                        POLEGAR,
+                        1
+                    )
+
+                    textoPolegar = "ABERTO"
+
+                # =============================================
+                # INDICADOR
+                # =============================================
+
+                distIndicador = (
+                    pontos[5][1] -
+                    pontos[8][1]
+                )
+
+                if distIndicador >= 1:
+
+                    atualizar_servo(
+                        INDICADOR,
+                        1
+                    )
+
+                    textoIndicador = "ABERTO"
+
                 else:
-                    mao.abrir_fechar(9,0)
 
-                if distMedio >=1:
-                    mao.abrir_fechar(8,1)
+                    atualizar_servo(
+                        INDICADOR,
+                        0
+                    )
+
+                    textoIndicador = "FECHADO"
+
+                # =============================================
+                # MÉDIO
+                # =============================================
+
+                distMedio = (
+                    pontos[9][1] -
+                    pontos[12][1]
+                )
+
+                if distMedio >= 1:
+
+                    atualizar_servo(
+                        MEDIO,
+                        1
+                    )
+
+                    textoMedio = "ABERTO"
+
                 else:
-                    mao.abrir_fechar(8,0)
 
-                if distAnelar >=1:
-                    mao.abrir_fechar(7,1)
+                    atualizar_servo(
+                        MEDIO,
+                        0
+                    )
+
+                    textoMedio = "FECHADO"
+
+                # =============================================
+                # ANELAR
+                # =============================================
+
+                distAnelar = (
+                    pontos[13][1] -
+                    pontos[16][1]
+                )
+
+                if distAnelar >= 1:
+
+                    atualizar_servo(
+                        ANELAR,
+                        1
+                    )
+
+                    textoAnelar = "ABERTO"
+
                 else:
-                    mao.abrir_fechar(7,0)
 
-                if distMinimo >=1:
-                    mao.abrir_fechar(6,1)
+                    atualizar_servo(
+                        ANELAR,
+                        0
+                    )
+
+                    textoAnelar = "FECHADO"
+
+                # =============================================
+                # MÍNIMO
+                # =============================================
+
+                distMinimo = (
+                    pontos[17][1] -
+                    pontos[20][1]
+                )
+
+                if distMinimo >= 1:
+
+                    atualizar_servo(
+                        MINIMO,
+                        1
+                    )
+
+                    textoMinimo = "ABERTO"
+
                 else:
-                    mao.abrir_fechar(6,0)
 
+                    atualizar_servo(
+                        MINIMO,
+                        0
+                    )
 
-    cv2.imshow('Imagem',img)
-    cv2.waitKey(1)
+                    textoMinimo = "FECHADO"
+
+                # =============================================
+                # TEXTOS EM VERMELHO
+                # =============================================
+
+                cv2.putText(
+                    img,
+                    f"Polegar: {textoPolegar}",
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    2
+                )
+
+                cv2.putText(
+                    img,
+                    f"Indicador: {textoIndicador}",
+                    (10, 55),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    2
+                )
+
+                cv2.putText(
+                    img,
+                    f"Medio: {textoMedio}",
+                    (10, 80),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    2
+                )
+
+                cv2.putText(
+                    img,
+                    f"Anelar: {textoAnelar}",
+                    (10, 105),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    2
+                )
+
+                cv2.putText(
+                    img,
+                    f"Minimo: {textoMinimo}",
+                    (10, 130),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 0, 255),
+                    2
+                )
+
+    # ========================================================
+    # MOSTRA A IMAGEM
+    # ========================================================
+
+    cv2.imshow(
+        "Mao Robotica - MediaPipe",
+        img
+    )
+
+    # Pressione Q para sair
+    tecla = cv2.waitKey(1) & 0xFF
+
+    if tecla == ord("q"):
+        break
+
+# ============================================================
+# FINALIZAÇÃO
+# ============================================================
+
+print("Encerrando programa...")
+
+hands.close()
+
+cap.release()
+
+cv2.destroyAllWindows()
+
+print("Programa encerrado.")

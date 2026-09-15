@@ -1,63 +1,236 @@
-from pyfirmata import Arduino,SERVO
+from pyfirmata import Arduino, SERVO
 import time
 
-board = Arduino('COM3')
-pin1 = 10
-pin2 = 9
-pin3 = 8
-pin4 = 7
-pin5 = 6
+# ============================================================
+# CONEXÃO COM O ARDUINO
+# ============================================================
 
-board.digital[pin1].mode = SERVO
-board.digital[pin2].mode = SERVO
-board.digital[pin3].mode = SERVO
-board.digital[pin4].mode = SERVO
-board.digital[pin5].mode = SERVO
+board = Arduino('COM6')
 
-def rotateServo(pino,angle):
-    board.digital[pino].write(angle)
-    time.sleep(0.015)
+# ============================================================
+# PINOS DOS SERVOS
+# ============================================================
 
-def abrir_fechar(pin,on_off):
-    if on_off==1:
-        rotateServo(pin, 0)
-    elif on_off==0 and pin!=10 and pin!=9:
-        rotateServo(pin, 140)
-    elif on_off == 0 and pin == 10:
-        rotateServo(pin, 150)
-    elif on_off == 0 and pin == 9:
-        rotateServo(pin, 180)
+POLEGAR = 10
+INDICADOR = 9
+MEDIO = 8
+ANELAR = 7
+MINIMO = 6
+
+pinos = [
+    POLEGAR,
+    INDICADOR,
+    MEDIO,
+    ANELAR,
+    MINIMO
+]
+
+# ============================================================
+# CONFIGURA OS PINOS COMO SERVO
+# ============================================================
+
+for pin in pinos:
+    board.digital[pin].mode = SERVO
+
+# Pequena espera para estabilizar a comunicação
+time.sleep(1)
+
+# ============================================================
+# ÂNGULOS DOS SERVOS
+# ============================================================
+#
+# Ajuste esses valores conforme a mecânica da mão.
+#
+# Evite começar usando exatamente 0 e 180,
+# pois o servo pode forçar no limite.
+# ============================================================
+
+ABERTO = {
+    POLEGAR: 20,
+    INDICADOR: 20,
+    MEDIO: 20,
+    ANELAR: 20,
+    MINIMO: 20
+}
+
+
+FECHADO = {
+    POLEGAR: 150,
+    INDICADOR: 160,
+    MEDIO: 160,
+    ANELAR: 160,
+    MINIMO: 160
+}
+
+# ============================================================
+# FUNÇÃO BÁSICA PARA POSICIONAR SERVO
+# ============================================================
+
+def rotateServo(pino, angulo):
+
+    # Segurança para não enviar ângulo inválido
+    if angulo < 0:
+        angulo = 0
+
+    if angulo > 180:
+        angulo = 180
+
+    board.digital[pino].write(angulo)
+
+# ============================================================
+# ABRIR / FECHAR UM DEDO
+# ============================================================
+
+def abrir_fechar(pin, estado):
+    """
+    estado = 1 -> dedo aberto
+    estado = 0 -> dedo fechado
+    """
+
+    if pin not in pinos:
+        print(f"Pino inválido: {pin}")
+        return
+
+    if estado == 1:
+
+        angulo = ABERTO[pin]
+
+        print(
+            f"Servo {pin} -> ABERTO ({angulo} graus)"
+        )
+
+        rotateServo(
+            pin,
+            angulo
+        )
+
+    elif estado == 0:
+
+        angulo = FECHADO[pin]
+
+        print(
+            f"Servo {pin} -> FECHADO ({angulo} graus)"
+        )
+
+        rotateServo(
+            pin,
+            angulo
+        )
+
+# ============================================================
+# ABRIR TODOS
+# ============================================================
+
+def abrir_todos():
+
+    print("Abrindo todos os dedos...")
+
+    for pin in pinos:
+
+        rotateServo(
+            pin,
+            ABERTO[pin]
+        )
+
+        time.sleep(0.05)
+
+# ============================================================
+# FECHAR TODOS
+# ============================================================
+
+def fechar_todos():
+
+    print("Fechando todos os dedos...")
+
+    for pin in pinos:
+
+        rotateServo(
+            pin,
+            FECHADO[pin]
+        )
+
+        time.sleep(0.05)
+
+# ============================================================
+# TESTE INDIVIDUAL
+# ============================================================
+
+def testar_servo(pin):
+
+    if pin not in pinos:
+        print("Pino inválido.")
+        return
+
+    print(
+        f"Testando servo do pino {pin}"
+    )
+
+    # Aberto
+    rotateServo(
+        pin,
+        ABERTO[pin]
+    )
+
+    time.sleep(1)
+
+    # Fechado
+    rotateServo(
+        pin,
+        FECHADO[pin]
+    )
+
+    time.sleep(1)
+
+    # Volta aberto
+    rotateServo(
+        pin,
+        ABERTO[pin]
+    )
+
+# ============================================================
+# TESTE DE TODOS OS SERVOS
+# ============================================================
 
 def testeTodos():
-    rotateServo(pin1,0)
-    rotateServo(pin2,0)
-    rotateServo(pin3,0)
-    rotateServo(pin4,0)
-    rotateServo(pin5,0)
-    time.sleep(1)
 
-    rotateServo(pin1,150)
-    time.sleep(1)
-    rotateServo(pin1,0)
-    time.sleep(1)
+    print("Iniciando teste dos servos...")
 
-    rotateServo(pin2,130)
-    time.sleep(1)
-    rotateServo(pin2,0)
-    time.sleep(1)
 
-    rotateServo(pin3,130)
-    time.sleep(1)
-    rotateServo(pin3,0)
-    time.sleep(1)
+    for pin in pinos:
 
-    rotateServo(pin4,130)
-    time.sleep(1)
-    rotateServo(pin4,0)
-    time.sleep(1)
+        print(
+            f"Testando pino {pin}"
+        )
 
-    rotateServo(pin5,130)
-    time.sleep(1)
-    rotateServo(pin5,0)
-    time.sleep(2)
+        rotateServo(
+            pin,
+            ABERTO[pin]
+        )
 
+        time.sleep(0.8)
+
+        rotateServo(
+            pin,
+            FECHADO[pin]
+        )
+
+        time.sleep(0.8)
+
+        rotateServo(
+            pin,
+            ABERTO[pin]
+        )
+
+        time.sleep(0.5)
+
+    print("Teste concluído.")
+
+# ============================================================
+# ENCERRAR CONEXÃO
+# ============================================================
+
+def encerrar():
+
+    print("Encerrando conexão com Arduino...")
+
+    board.exit()
