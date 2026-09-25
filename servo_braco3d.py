@@ -46,11 +46,11 @@ time.sleep(1)
 # ============================================================
 
 ABERTO = {
-    POLEGAR: 20,
-    INDICADOR: 20,
-    MEDIO: 20,
-    ANELAR: 20,
-    MINIMO: 20
+    POLEGAR: 10,
+    INDICADOR: 10,
+    MEDIO: 10,
+    ANELAR: 10,
+    MINIMO: 10
 }
 
 

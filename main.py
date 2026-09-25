@@ -13,7 +13,7 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
 # ============================================================
 # CONFIGURAÇÃO DO MEDIAPIPE
-# ============================================================
+# ===========================================q=================
 
 mp_hands = mp.solutions.hands
 mp_draw = mp.solutions.drawing_utils
